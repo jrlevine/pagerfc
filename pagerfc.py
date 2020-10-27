@@ -82,7 +82,7 @@ class Pagerfc:
             
             thispage.append(l)
 
-            # section header? line starts with a digit
+            # section header? line starts with a non-space
             if l and not l.startswith(' '):
                 ls = l.replace(' ','')
                 if ls in self.toc:
@@ -92,6 +92,7 @@ class Pagerfc:
                     for k in self.toc:
                         if k.startswith(pref):
                             self.toc[k] = pageno
+                            break
                 thishdr = l
 
             if l == 'Table of Contents':
