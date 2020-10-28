@@ -67,36 +67,58 @@ class Pagerfc:
         thispage = []
         self.pages = [ thispage ]
         self.sechdrs = []              # section at the end of the page
-        seentoc = False
-        for l in self.lines:
+
+        def dotoc(l):
+            """
+            put a page number into the TOC
+            """
+            ls = l.replace(' ','')
+            if ls in self.toc:
+                self.toc[ls] = pageno
+            else:   # hack for very long TOC entries
+                pref = l.split()[0]
+                for k in self.toc:
+                    if k.startswith(pref):
+                        self.toc[k] = pageno
+
+        for li in range(len(self.lines)):
+            l = self.lines[li]
 
             # kill BOM
             if '\ufeff' in l:
                 l = ''
             # start a new page ?
             if len(thispage) > randint(56,58):
-                self.sechdrs.append(thishdr)
-                thispage = []
-                self.pages.append(thispage)
-                pageno += 1
+                # would there be a widow?
+                if l > '' and self.lines[li+1] == '' and self.lines[li-1] > '':
+                    if self.debug:
+                        #print(self.lines[li-1: li+2])
+                        print("avoided widow", pageno)
+                else:
+                    self.sechdrs.append(thishdr)
+                    lastpage = thispage
+                    thispage = []
+                    # was there an orphan
+                    if l > '' and self.lines[li-1] > '' and self.lines[li-2] == '':
+                        if self.debug:
+                            #print(self.lines[li-2: li+1])
+                            print("moved orphan", pageno)
+                        # move it onto the new page
+                        lx = lastpage.pop()
+                        # adjust page ref if needed
+                        if not lx.startswith(' '):
+                            dotoc(lx)
+                        thispage.append(lx)
+                    self.pages.append(thispage)
+                    pageno += 1
             
             thispage.append(l)
 
             # section header? line starts with a non-space
             if l and not l.startswith(' '):
-                ls = l.replace(' ','')
-                if ls in self.toc:
-                    self.toc[ls] = pageno
-                else:   # hack for very long TOC entries
-                    pref = l.split()[0]
-                    for k in self.toc:
-                        if k.startswith(pref):
-                            self.toc[k] = pageno
-                            break
+                dotoc(l)
                 thishdr = l
 
-            if l == 'Table of Contents':
-                seentoc = True
         self.sechdrs.append(thishdr)
                 
     def printpages(self, file=sys.stdout):
@@ -108,7 +130,7 @@ class Pagerfc:
             if pageno > 1:
                 print(f"RFC {self.rfcno} {self.title}\n", file=file)
             else:
-                print("", file=file)
+                print("\ufeff", file=file) # start with a BOM
 
             for l in page:
                 if seentoc == 0 and l == 'Table of Contents':
@@ -143,7 +165,7 @@ if __name__=="__main__":
     parser.add_argument("file", type=str, help='file to paginate')
     args = parser.parse_args()
 
-    pp = Pagerfc(args.file)
+    pp = Pagerfc(args.file, debug=args.d)
     pp.findtitle()
     pp.findtoc()
     pp.makepages()
